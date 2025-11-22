@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import styled from "styled-components";
@@ -83,6 +83,10 @@ const Button = styled.button`
     outline: none;
     box-shadow: 0 0 0 2px rgb(96 165 250 / 0.5);
   }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
   svg {
     width: 1.25rem;
     height: 1.25rem;
@@ -90,50 +94,112 @@ const Button = styled.button`
 `;
 
 type CardCarouselProps = {
-  image1Url?: string;
-  image2Url?: string;
-  image3Url?: string;
+  items?: Array<string | { id?: number | string; image?: string; imageUrl?: string }>;
 };
 
 type CardData = {
-  id: number;
+  id: number | string;
   image: string;
 };
 
-export default function CardCarousel({
-  image1Url = "https://picsum.photos/id/1015/600/600",
-  image2Url = "https://picsum.photos/id/1018/600/600",
-  image3Url = "https://picsum.photos/id/1019/600/600",
-}: CardCarouselProps) {
-  const [currentIndex, setCurrentIndex] = useState(1);
+const CARD_SPACING = "clamp(100px, 15vw, 180px)";
 
-  const cards: CardData[] = [
-    { id: 1, image: image1Url },
-    { id: 2, image: image2Url },
-    { id: 3, image: image3Url },
-  ];
+export default function CardCarousel({
+  items
+}: CardCarouselProps) {
+  const cards = useMemo<CardData[]>(() => {
+    if (items && items.length > 0) {
+      return items
+        .map((entry, index) => {
+          if (typeof entry === "string") {
+            return { id: index, image: entry };
+          }
+          const image = entry.image ?? entry.imageUrl;
+          if (!image) {
+            return undefined;
+          }
+          return {
+            id: entry.id ?? index,
+            image,
+          };
+        })
+        .filter((card): card is CardData => Boolean(card?.image));
+    }
+
+    return [];
+
+  }, [items]);
+
+  const [currentIndex, setCurrentIndex] = useState(() =>
+    cards.length ? Math.min(Math.floor(cards.length / 2), cards.length - 1) : 0,
+  );
+
+  useEffect(() => {
+    if (cards.length === 0) {
+      setCurrentIndex(0);
+      return;
+    }
+    setCurrentIndex((prevIndex) => {
+      if (prevIndex < cards.length) {
+        return prevIndex;
+      }
+      return cards.length - 1;
+    });
+  }, [cards.length]);
+
+  if (cards.length === 0) {
+    return null;
+  }
 
   const goToPrevious = () => {
+    if (cards.length <= 1) {
+      return;
+    }
     setCurrentIndex((prevIndex) =>
       prevIndex === 0 ? cards.length - 1 : prevIndex - 1,
     );
   };
 
   const goToNext = () => {
+    if (cards.length <= 1) {
+      return;
+    }
     setCurrentIndex((prevIndex) =>
       prevIndex === cards.length - 1 ? 0 : prevIndex + 1,
     );
   };
 
   const getCardStyles = (index: number) => {
-    const position =
-      (index - currentIndex + cards.length) % cards.length;
-    const normalizedPosition =
-      position > 1 ? position - cards.length : position;
+    if (cards.length === 1) {
+      return {
+        isCurrent: true,
+        isVisible: true,
+        rotation: 0,
+        zIndex: 2,
+        xPosition: 0,
+        scale: 1,
+        opacity: 1,
+      };
+    }
+
+    const total = cards.length;
+    let relative = index - currentIndex;
+    if (relative > total / 2) {
+      relative -= total;
+    } else if (relative < -total / 2) {
+      relative += total;
+    }
+
+    const isCurrent = relative === 0;
+    const isVisible = Math.abs(relative) <= 1 || total === 2;
     return {
-      rotation: normalizedPosition * 5,
-      zIndex: normalizedPosition === 0 ? 10 : 0,
-      xPosition: `calc(${normalizedPosition} * (clamp(100px, 15vw, 180px)))`,
+      isCurrent,
+      isVisible,
+      rotation: isVisible ? relative * 5 : 0,
+      zIndex: isCurrent ? 3 : isVisible ? 2 : 1,
+      xPosition: isVisible ? `calc(${relative} * ${CARD_SPACING})` : 0,
+      scale: isCurrent ? 1 : isVisible ? 0.92 : 0.85,
+      opacity: isVisible ? 1 : 0,
     };
   };
 
@@ -145,7 +211,7 @@ export default function CardCarousel({
         aria-roledescription="carousel"
       >
         {cards.map((card, index) => {
-          const { rotation, zIndex, xPosition } =
+          const { rotation, zIndex, xPosition, scale, opacity, isVisible } =
             getCardStyles(index);
           return (
             <Card
@@ -155,7 +221,8 @@ export default function CardCarousel({
                 x: xPosition,
                 rotate: rotation,
                 zIndex: zIndex,
-                scale: index === currentIndex ? 1 : 0.9,
+                scale: scale,
+                opacity,
               }}
               transition={{
                 type: "spring",
@@ -164,10 +231,11 @@ export default function CardCarousel({
               }}
               style={{
                 backgroundImage: `url(${card.image})`,
+                pointerEvents: isVisible ? "auto" : "none",
               }}
               role="group"
               aria-label={`Slide ${index + 1} of ${cards.length}`}
-              aria-hidden={index !== currentIndex}
+              aria-hidden={!isVisible}
             />
           );
         })}
@@ -176,10 +244,15 @@ export default function CardCarousel({
         <Button
           onClick={goToPrevious}
           aria-label="Previous slide"
+          disabled={cards.length <= 1}
         >
           <ChevronLeft aria-hidden="true" />
         </Button>
-        <Button onClick={goToNext} aria-label="Next slide">
+        <Button
+          onClick={goToNext}
+          aria-label="Next slide"
+          disabled={cards.length <= 1}
+        >
           <ChevronRight aria-hidden="true" />
         </Button>
       </Controls>

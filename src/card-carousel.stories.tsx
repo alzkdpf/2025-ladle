@@ -4,12 +4,15 @@ export default {
   title: "Carousel/CardCarousel",
 };
 
-export const Default = () => <CardCarousel />;
-
-export const CustomImages = () => (
+export const Default = () => (
   <CardCarousel
-    image1Url="https://picsum.photos/id/1040/600/600"
-    image2Url="https://picsum.photos/id/1041/600/600"
-    image3Url="https://picsum.photos/id/1042/600/600"
+    items={[
+      "https://picsum.photos/id/1035/600/600",
+      "https://picsum.photos/id/1043/600/600",
+      "https://picsum.photos/id/1059/600/600",
+      "https://picsum.photos/id/1060/600/600",
+      "https://picsum.photos/id/1069/600/600",
+      "https://picsum.photos/id/1074/600/600",
+    ]}
   />
 );
